@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agy-token-stats"
+version = "0.1.0"
+description = "Estimate and report token usage statistics across Antigravity (agy) CLI and IDE sessions, including subagent trees."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "vikrant82", email = "vikrant82@users.noreply.github.com" },
+]
+keywords = ["antigravity", "agy", "tokens", "analytics", "cli", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/vikrant82/agy-token-stats"
+Repository = "https://github.com/vikrant82/agy-token-stats"
+Issues = "https://github.com/vikrant82/agy-token-stats/issues"
+
+[project.scripts]
+agy-token-stats = "agy_token_stats.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

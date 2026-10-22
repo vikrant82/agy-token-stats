@@ -76,15 +76,14 @@ For each `PLANNER_RESPONSE` step with non-empty `thinking`:
 `agy-token-stats` requires **Python 3.9+** and has **zero third-party runtime dependencies**.
 
 ```bash
-# Install isolated CLI globally with uv or pipx from GitHub
-uv tool install git+https://github.com/vikrant82/agy-token-stats.git
-# or
-pipx install git+https://github.com/vikrant82/agy-token-stats.git
+# Install from PyPI
+pip install agy-token-stats
+# or isolated CLI via uv / pipx
+uv tool install agy-token-stats
+pipx install agy-token-stats
 
-# Or install from a local clone
-git clone https://github.com/vikrant82/agy-token-stats.git
-cd agy-token-stats
-pip install -e .
+# Or install directly from GitHub
+uv tool install git+https://github.com/vikrant82/agy-token-stats.git
 ```
 
 ---

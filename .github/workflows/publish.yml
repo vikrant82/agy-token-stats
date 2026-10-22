@@ -44,9 +44,7 @@ jobs:
 
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        # Uses PYPI_API_TOKEN secret if set; falls back to PyPI Trusted Publishing (OIDC) when empty
-        password: ${{ secrets.PYPI_API_TOKEN }}
+      # Uses trusted publishing - configure on PyPI
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2

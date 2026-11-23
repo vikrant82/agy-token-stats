@@ -20,7 +20,11 @@ from agy_token_stats.discovery import (
     discover_sessions,
     infer_source_kind,
 )
-from agy_token_stats.formatters import format_human_report, format_json_report
+from agy_token_stats.formatters import (
+    format_human_report,
+    format_json_report,
+    resolve_color_enabled,
+)
 from agy_token_stats.time_window import get_default_local_tz, resolve_time_window
 
 
@@ -159,6 +163,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="Hide the daily breakdown table",
     )
+    color_group = view_group.add_mutually_exclusive_group()
+    color_group.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="Colorize human-readable terminal output (default: auto)",
+    )
+    color_group.add_argument(
+        "--no-color",
+        dest="color",
+        action="store_const",
+        const="never",
+        help="Disable ANSI color codes in human-readable output",
+    )
     view_group.add_argument(
         "--json",
         action="store_true",
@@ -252,12 +270,14 @@ def main(
         print(format_json_report(report))
     else:
         show_subs = bool(args.show_subagents or args.session)
+        use_color = resolve_color_enabled(args.color)
         print(
             format_human_report(
                 report,
                 top_n=args.top,
                 show_daily=args.show_daily,
                 show_subagents=show_subs,
+                color=use_color,
             )
         )
     return 0

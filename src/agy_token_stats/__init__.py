@@ -29,6 +29,7 @@ from agy_token_stats.discovery import (
 from agy_token_stats.formatters import (
     format_human_report,
     format_json_report,
+    resolve_color_enabled,
 )
 from agy_token_stats.models import (
     DailyStats,
@@ -46,6 +47,13 @@ from agy_token_stats.parser import (
     _step_text_chars,
     parse_transcript_file,
 )
+from agy_token_stats.pricing import (
+    ModelPricing,
+    StepCost,
+    estimate_step_cost,
+    normalize_model_name,
+    resolve_model_pricing,
+)
 from agy_token_stats.time_window import (
     get_default_local_tz,
     parse_bound_datetime,
@@ -53,7 +61,7 @@ from agy_token_stats.time_window import (
     resolve_time_window,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",
@@ -62,9 +70,11 @@ __all__ = [
     "DEFAULT_IDE_BRAIN_DIR",
     "SKIPPED_BRAIN_DIRS",
     "DailyStats",
+    "ModelPricing",
     "SessionRecord",
     "SessionSummary",
     "StatsReport",
+    "StepCost",
     "StepRecord",
     "SubagentLink",
     "TimeWindow",
@@ -82,15 +92,19 @@ __all__ = [
     "build_arg_parser",
     "compute_stats_report",
     "discover_sessions",
+    "estimate_step_cost",
     "format_human_report",
     "format_json_report",
     "get_default_local_tz",
     "infer_source_kind",
     "load_cli_history_metadata",
     "main",
+    "normalize_model_name",
     "parse_bound_datetime",
     "parse_iso_timestamp",
     "parse_transcript_file",
     "resolve_brain_sources",
+    "resolve_color_enabled",
+    "resolve_model_pricing",
     "resolve_time_window",
 ]

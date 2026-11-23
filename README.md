@@ -40,6 +40,16 @@ Within each conversation directory:
 | `total_tokens` | `gross_input + output_tokens` — total tokens processed including prompt cache reads. |
 | `initial_context` | `gross_input` of the first `PLANNER_RESPONSE` step in the session/window. |
 | `peak_context` | Maximum single-step context (`input_tokens + cache_read_tokens + output_tokens`) across included `PLANNER_RESPONSE` steps. |
+| `approx_cost_usd` | Approximate Gemini API Paid Tier USD cost (`input_cost_usd + cache_cost_usd + output_cost_usd`) across priced calls. |
+| `cache_savings_usd` | Approximate USD saved by prompt cache hits vs. uncached input pricing. |
+
+### Approximate Gemini Pricing
+
+When steps map to a Gemini model (including Gemini 4 Hydrogen/Neon/Argon/Carbon, Gemini 3.x Pro/Flash/Flash-Lite, and Gemini 2.x), `agy-token-stats` computes approximate costs using [Google AI Studio Gemini API Paid Tier rates](https://aistudio.google.com/docs/choosing-a-model) (`USD / 1M tokens`):
+- `uncached_input` is billed at the model's standard (or `>200k` long-context) input rate.
+- `cache_read` is billed at the model's context-caching read rate, and `cache_savings_usd` tracks the discount relative to uncached input.
+- `output_tokens` (which already includes thinking tokens) is billed at the model's combined output rate.
+- Non-Gemini or `Unknown` model calls are excluded from cost totals (shown as `—`, with partial aggregates marked `*`).
 
 ### Thinking Token Estimation
 
@@ -108,6 +118,8 @@ uv tool install git+https://github.com/vikrant82/agy-token-stats.git
 | `--show-subagents` | Display indented child subagent rows beneath each parent session in the sessions table. |
 | `--top N` | Number of sessions to show in the sessions table (`0` for all; default: `20`). |
 | `--daily` / `--no-daily` | Force-enable or hide the local-date daily breakdown table. |
+| `--color {auto,always,never}` | Colorize human-readable terminal output (`auto` uses TTY + `NO_COLOR`/`FORCE_COLOR`; default: `auto`). |
+| `--no-color` | Disable ANSI color codes in human-readable output (alias for `--color never`). |
 | `--json` | Emit structured JSON output instead of the human-readable report. |
 
 ---
@@ -151,13 +163,15 @@ agy-token-stats/
 │   ├── parser.py         # Transcript JSONL step parsing, thinking split, model tracking, char/4 fallback
 │   ├── discovery.py      # Brain directory scanning, history.jsonl enrichment, subagent model inheritance
 │   ├── aggregator.py     # Step/session/model filtering and tree/flat rollup aggregation
-│   ├── formatters.py     # Aligned human-readable CLI tables and JSON report serialization
+│   ├── pricing.py        # Approximate Gemini API Paid Tier rate catalog and per-step cost estimation
+│   ├── formatters.py     # Colorized/plain human-readable CLI tables and JSON report serialization
 │   └── cli.py            # Argument parser, source path resolution, and CLI main()
 └── tests/
     ├── helpers.py
     ├── test_time_window.py
     ├── test_parser_and_discovery.py
-    └── test_aggregator_and_cli.py
+    ├── test_aggregator_and_cli.py
+    └── test_pricing_and_formatting.py
 ```
 
 ### Running Tests

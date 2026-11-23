@@ -17,6 +17,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from agy_token_stats.pricing import estimate_step_cost
+
 
 @dataclass
 class StepRecord:
@@ -113,6 +115,8 @@ class TokenMetrics:
         - `cache_hit_pct` and `thinking_pct` are in `[0.0, 100.0]`.
         - `peak_context` is the maximum single-step context (`input + cache_read + output`)
           across all `PLANNER_RESPONSE` steps included in the aggregation.
+        - `priced_calls + unpriced_calls == llm_calls`.
+        - `cost_usd == input_cost_usd + cache_cost_usd + output_cost_usd`.
     """
 
     llm_calls: int = 0
@@ -126,6 +130,22 @@ class TokenMetrics:
     thinking_steps: int = 0
     initial_context: int = 0
     peak_context: int = 0
+    input_cost_usd: float = 0.0
+    cache_cost_usd: float = 0.0
+    output_cost_usd: float = 0.0
+    cache_savings_usd: float = 0.0
+    priced_calls: int = 0
+    unpriced_calls: int = 0
+
+    @property
+    def cost_usd(self) -> float:
+        """Total approximate USD cost across all priced LLM calls."""
+        return self.input_cost_usd + self.cache_cost_usd + self.output_cost_usd
+
+    @property
+    def has_pricing(self) -> bool:
+        """True if at least one LLM call matched a known pricing rule."""
+        return self.priced_calls > 0
 
     @property
     def gross_input(self) -> int:
@@ -167,7 +187,7 @@ class TokenMetrics:
         """True if at least one LLM call or user turn was recorded."""
         return self.llm_calls > 0 or self.user_turns > 0
 
-    def add_step(self, step: StepRecord) -> None:
+    def add_step(self, step: StepRecord, *, model: str | None = None) -> None:
         """Incorporate a single `StepRecord` into this metrics accumulator."""
         if step.step_type == "USER_INPUT":
             self.user_turns += 1
@@ -192,6 +212,17 @@ class TokenMetrics:
         if step_ctx > self.peak_context:
             self.peak_context = step_ctx
 
+        eff_model = model if model is not None else (step.model or "")
+        step_cost = estimate_step_cost(step, eff_model)
+        if step_cost is not None:
+            self.input_cost_usd += step_cost.input_cost_usd
+            self.cache_cost_usd += step_cost.cache_cost_usd
+            self.output_cost_usd += step_cost.output_cost_usd
+            self.cache_savings_usd += step_cost.cache_savings_usd
+            self.priced_calls += 1
+        else:
+            self.unpriced_calls += 1
+
     def merge(self, other: TokenMetrics) -> TokenMetrics:
         """Return a new `TokenMetrics` combining `self` and `other` without mutating either."""
         return TokenMetrics(
@@ -208,10 +239,23 @@ class TokenMetrics:
                 self.initial_context if self.initial_context > 0 else other.initial_context
             ),
             peak_context=max(self.peak_context, other.peak_context),
+            input_cost_usd=self.input_cost_usd + other.input_cost_usd,
+            cache_cost_usd=self.cache_cost_usd + other.cache_cost_usd,
+            output_cost_usd=self.output_cost_usd + other.output_cost_usd,
+            cache_savings_usd=self.cache_savings_usd + other.cache_savings_usd,
+            priced_calls=self.priced_calls + other.priced_calls,
+            unpriced_calls=self.unpriced_calls + other.unpriced_calls,
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize metrics and derived properties to a JSON-compatible dictionary."""
+        approx_cost: float | None
+        if self.priced_calls > 0:
+            approx_cost = round(self.cost_usd, 6)
+        elif self.llm_calls == 0:
+            approx_cost = 0.0
+        else:
+            approx_cost = None
         return {
             "llm_calls": self.llm_calls,
             "estimated_steps": self.estimated_steps,
@@ -230,6 +274,13 @@ class TokenMetrics:
             "total_tokens": self.total_tokens,
             "initial_context": self.initial_context,
             "peak_context": self.peak_context,
+            "approx_cost_usd": approx_cost,
+            "input_cost_usd": round(self.input_cost_usd, 6),
+            "cache_cost_usd": round(self.cache_cost_usd, 6),
+            "output_cost_usd": round(self.output_cost_usd, 6),
+            "cache_savings_usd": round(self.cache_savings_usd, 6),
+            "priced_calls": self.priced_calls,
+            "unpriced_calls": self.unpriced_calls,
         }
 
 

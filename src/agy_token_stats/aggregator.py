@@ -148,7 +148,8 @@ def compute_stats_report(
         last_dt: datetime | None = None
         step_models: list[str] = []
         for st in matching_steps:
-            metrics.add_step(st)
+            eff_model = _step_effective_model(st, rec)
+            metrics.add_step(st, model=eff_model)
             if st.step_type in ("PLANNER_RESPONSE", "USER_INPUT"):
                 if first_dt is None or st.created_at_local < first_dt:
                     first_dt = st.created_at_local
@@ -209,11 +210,13 @@ def compute_stats_report(
                 continue
 
             m_key = _step_effective_model(st, rec)
-            session_model_accs.setdefault(m_key, TokenMetrics()).add_step(st)
+            session_model_accs.setdefault(m_key, TokenMetrics()).add_step(
+                st, model=m_key
+            )
 
             day_key = st.created_at_local.strftime("%Y-%m-%d")
             d_acc = daily_metrics.setdefault(day_key, TokenMetrics())
-            d_acc.add_step(st)
+            d_acc.add_step(st, model=m_key)
             if is_subagent and not flat:
                 daily_subagents.setdefault(day_key, set()).add(cid)
                 if (

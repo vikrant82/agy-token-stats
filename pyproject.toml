@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agy-token-stats"
-version = "0.2.0"
+version = "0.3.0"
 description = "Estimate and report token usage statistics across Antigravity (agy) CLI and IDE sessions, including subagent trees."
 readme = "README.md"
 requires-python = ">=3.9"

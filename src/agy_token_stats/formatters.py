@@ -12,9 +12,10 @@ import json
 import os
 import re
 import sys
-from typing import TextIO
+from typing import Any, TextIO
 
 from agy_token_stats.models import SessionSummary, StatsReport, TokenMetrics
+from agy_token_stats.quota import WEEK, format_countdown
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -319,6 +320,128 @@ def _render_breakdown_table(
 def format_json_report(report: StatsReport, *, indent: int = 2) -> str:
     """Serialize `StatsReport` to a formatted JSON string."""
     return json.dumps(report.to_dict(), indent=indent)
+
+
+def format_quota_human(report: Mapping[str, Any], *, color: bool = False) -> str:
+    """Render a quota snapshot as ANSI-aware tables without changing the report."""
+    def title(text: str) -> str:
+        return _paint(text, _BOLD, _BRIGHT_CYAN, color=color)
+
+    def local_time(value: str, *, projected: bool = False) -> str:
+        instant = datetime.fromisoformat(value)
+        offset = instant.strftime("%z")
+        offset = f"{offset[:3]}:{offset[3:]}" if offset else ""
+        text = f"{instant:%a %b %d, %H:%M:%S} {offset}".rstrip()
+        return f"{text} (projected)" if projected else text
+
+    blocked = report["quota_status"] == "blocked"
+    if blocked:
+        status = (
+            "BLOCKED — weekly limit notice"
+            if report["reset_source"] == "manual_limit_notice"
+            else "BLOCKED — manually recorded"
+        )
+    else:
+        status = "Unverified"
+    reset = report["reset_local"]
+    rows = [("Status", _paint(status, _BOLD, _BRIGHT_RED if blocked else _YELLOW, color=color))]
+    if reset is None:
+        rows.append(("Reset at", "Unknown"))
+    else:
+        countdown = format_countdown(report["seconds_until_reset"])
+        rows.extend(
+            [
+                ("Resets in", _paint(countdown, _BOLD, _BRIGHT_CYAN, color=color)),
+                ("Reset at", local_time(reset, projected=report["reset_projected"])),
+            ]
+        )
+    lines = [title("Antigravity weekly quota"), ""]
+    lines.extend(_render_aligned_table(("Quota", "Value"), rows, set(), color=color))
+    if reset is None:
+        lines.extend(["", "Register a reset with --quota-reset WHEN."])
+        return "\n".join(lines)
+
+    used = report["estimated_used_usd"]
+    spend = _paint(f"${used:,.2f}", _BOLD, _MAGENTA, color=color) if used is not None else "Unavailable"
+    budget_rows = [("Spend in local logs", spend)]
+    if not blocked:
+        budget_rows.append(("Planning budget", f"${report['limit_usd']:,.2f}"))
+        remaining = report["estimated_remaining_usd"]
+        if remaining is not None:
+            budget_rows.append(("Est. budget left until reset", f"${remaining:,.2f}"))
+        hit = report["estimated_limit_hit_local"]
+        if hit is not None:
+            budget_rows.append(("Budget hit at current pace", local_time(hit)))
+    coverage = report["sources_scanned"]
+    if coverage:
+        budget_rows.append(("Sources", ", ".join(coverage)))
+    lines.extend(["", title("▸ Local usage estimate")])
+    lines.extend(_render_aligned_table(("Metric", "Value"), budget_rows, {1}, color=color))
+    if not blocked:
+        average = report["average_usd_per_day"]
+        full_cycle_rate = report["limit_usd"] / WEEK.days
+        headers = ["Avg. local spend / day", f"Budget / day ({WEEK.days} days)"]
+        values = [
+            f"${average:,.2f}" if average is not None else "—",
+            f"${full_cycle_rate:,.2f}",
+        ]
+        remaining_rate = report["sustainable_remaining_usd_per_day"]
+        if remaining_rate is not None and report["seconds_until_reset"] >= 86400:
+            headers.append("Est. budget left / day")
+            values.append(f"${remaining_rate:,.2f}")
+        lines.extend(["", title("▸ Daily averages")])
+        lines.extend(_render_aligned_table(headers, [values], set(range(len(headers))), color=color))
+    lines.extend(["", "Local estimates can miss usage; this is not Google's quota meter."])
+    if report["reset_projected"]:
+        lines.append("Projected reset assumes a 168-hour cycle; not verified by Google.")
+    if report["sources_unavailable"]:
+        missing = ", ".join(report["sources_unavailable"])
+        lines.append(_paint(f"Unavailable sources: {missing}", _YELLOW, color=color))
+    if report["unpriced_calls"]:
+        lines.append(f"Unpriced calls excluded: {report['unpriced_calls']:,}")
+    if report["estimated_token_steps"]:
+        lines.append(f"Calls with estimated tokens: {report['estimated_token_steps']:,}")
+    return "\n".join(lines)
+
+
+def format_trailing_usage_human(
+    report: Mapping[str, Any], *, color: bool = False
+) -> str:
+    """Render the no-reset first-run preview of trailing local seven-day usage."""
+    title = _paint("Last 7 days · local usage", _BOLD, _BRIGHT_CYAN, color=color)
+    used = report["estimated_used_usd"]
+    average = report["average_usd_per_day"]
+    rows = [
+        (
+            "Local spend",
+            f"${used:,.2f}" if used is not None else "Unavailable",
+        ),
+        (
+            "Average / day",
+            f"${average:,.2f}" if average is not None else "Unavailable",
+        ),
+    ]
+    if report["llm_calls"] is not None:
+        rows.append(
+            (
+                "Calls",
+                f"{report['llm_calls']:,} total; {report['priced_calls']:,} priced; "
+                f"{report['unpriced_calls']:,} unpriced",
+            )
+        )
+    if report["sources_scanned"]:
+        rows.append(("Sources", ", ".join(report["sources_scanned"])))
+    lines = [title]
+    lines.extend(_render_aligned_table(("Metric", "Value"), rows, {1}, color=color))
+    lines.append("Local estimates can miss usage; this is not your Google quota window.")
+    if report["sources_unavailable"]:
+        missing = ", ".join(report["sources_unavailable"])
+        lines.append(_paint(f"Unavailable sources: {missing}", _YELLOW, color=color))
+    if report["unpriced_calls"]:
+        lines.append(f"Unpriced calls excluded: {report['unpriced_calls']:,}")
+    if report["estimated_token_steps"]:
+        lines.append(f"Calls with estimated tokens: {report['estimated_token_steps']:,}")
+    return "\n".join(lines)
 
 
 def format_human_report(

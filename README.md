@@ -111,6 +111,11 @@ uv tool install git+https://github.com/vikrant82/agy-token-stats.git
 | `--last-n-hours H`, `--hours H` | Include activity from the rolling last `H` hours up to now. |
 | `--since DATE_OR_ISO` | Lower bound in local time (`YYYY-MM-DD` at `00:00:00` or ISO-8601 timestamp). |
 | `--until DATE_OR_ISO` | Upper bound in local time (`YYYY-MM-DD` at `23:59:59.999999` or ISO-8601 timestamp). |
+| `--quota` | Show the weekly Antigravity quota countdown and a forecast based on local usage. |
+| `--quota-reset WHEN` | With `--quota`, save a reset timestamp with an explicit UTC offset, a fresh countdown, or the full weekly-limit notice. |
+| `--quota-blocked` | With `--quota`, record that Antigravity is currently blocking usage until the registered reset. If the saved reset has passed or is unknown, also provide a fresh `--quota-reset`. |
+| `--quota-limit USD` | With `--quota`, set the budget for this report (default: `$200`). |
+| `--quota-file PATH` | With `--quota`, override the reset state file. |
 | `--by-session` | Filter whole sessions by session start time instead of individual step timestamps. |
 | `--session ID_OR_PREFIX` | Filter to a conversation UUID (or prefix) and expand its subagent tree. |
 | `--model PATTERN` | Filter steps/sessions by model name using a case-insensitive substring match (e.g. `--model claude`, `--model flash`). |
@@ -145,6 +150,31 @@ agy-token-stats --session 179c4f24
 # Export JSON report for a custom date range
 agy-token-stats --since 2026-04-01 --until 2026-04-19 --json
 ```
+
+### Weekly quota
+
+```bash
+# Show the current cycle, or the last 7 days of local usage if the reset is unknown
+agy-token-stats --quota
+
+# Save an observation (use your reset time / fresh countdown)
+agy-token-stats --quota --quota-reset '2026-11-27T20:15:00+05:30'
+agy-token-stats --quota --quota-reset '1h30m19s'
+
+# Antigravity has blocked usage and the saved reset is still in the future
+agy-token-stats --quota --quota-blocked
+
+# Machine-readable report, using a different budget for this run
+agy-token-stats --quota --quota-limit 250 --json
+```
+
+The tool does not fetch your quota status or reset from Google or detect it from transcripts. Pasting the full “You've reached your individual weekly usage limit…” notice records both the block and the reset; entering a countdown or timestamp by itself only records the reset. Use `--quota-blocked` to mark an existing future reset as blocked without re-entering its time. A reported block suppresses remaining-budget and pace estimates until the observed reset. After the reset, quota status is unverified. Use a countdown only while it is fresh: it is added to the time you enter it. To record an older observation, enter the exact reset timestamp instead. The observation is saved to `${XDG_CONFIG_HOME:-~/.config}/agy-token-stats/quota.json` by default. JSON and noninteractive runs never prompt; provide `--quota-reset` to register a reset in those runs.
+
+Without a saved reset, the report shows estimated spend and a daily average for the last 168 hours. That period is not your Google quota window, so the report does not show budget remaining or a forecast. In a terminal, you can register a reset after seeing the estimate or press Enter to leave the reset unknown.
+
+The report counts usage from the start of the current cycle, not the last seven calendar days. It projects future resets in fixed 168-hour intervals from the saved observation; re-register if Antigravity shows a different reset. Quiet days in the transcript are not evidence of a reset. Quota mode does not accept time, model, or session filters.
+
+The `$200` is a configurable planning budget, not a limit fetched from Google. Spend and forecasts use approximate Gemini API rates for calls found in local transcripts; unpriced calls and activity on other machines are not counted. The report identifies unavailable transcript sources and does not report a spend estimate if none are accessible. When quota status is unverified, the local usage table shows the estimated dollars left until reset and when the current pace would hit the budget, if before reset. The daily averages table compares average recorded spend so far with the budget divided by seven days. If at least 24 hours remain and a spend rate is available, it also shows the estimated remaining budget per day until reset. Projected total spend at reset remains available in `--json`; the human tables follow the CLI's usual `--color` setting.
 
 ---
 
